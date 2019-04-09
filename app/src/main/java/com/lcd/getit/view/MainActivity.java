@@ -14,6 +14,7 @@ import android.widget.TextView;
 
 import com.lcd.getit.Constants;
 import com.lcd.getit.R;
+import com.lcd.getit.model.DetectListener;
 import com.lcd.getit.model.service.DetectService;
 import com.lcd.getit.view.wegit.DetectSurfaceView;
 import com.lcd.getit.view.wegit.DetectView;
@@ -57,7 +58,7 @@ public class MainActivity extends Activity
         HashMap<String, String> hashmapOptions = new HashMap<String, String>();
         hashmapOptions.put("baike_num", "5");
 
-        DetectSurfaceView.ResultDetectedListener resultdetectedlistener = new DetectSurfaceView.ResultDetectedListener()
+        DetectListener detectedlistener = new DetectListener()
         {
             @Override
             public void onResultDetected(final BaseDetectResult basedetectresult)
@@ -82,7 +83,7 @@ public class MainActivity extends Activity
 
         detectview.setOptions(hashmapOptions);
         detectview.setDetectClass(GeneralObjectDetector.class);
-        detectview.setResultDetectedListener(resultdetectedlistener);
+        detectview.setResultDetectedListener(detectedlistener);
         detectview.setAipImageClassify(Constants.APP_ID, Constants.API_KEY, Constants.SECRET_KEY);
     }
     @Override

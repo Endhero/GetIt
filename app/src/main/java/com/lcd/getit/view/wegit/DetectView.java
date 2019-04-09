@@ -6,10 +6,9 @@ import android.widget.FrameLayout;
 
 import entity.detectresult.BaseDetectResult;
 import entity.info.resultinfo.MainObjectResultInfo;
-import imageclassify.AipImageClassify;
 
-import com.lcd.getit.Constants;
-import com.lcd.getit.view.wegit.DetectSurfaceView.*;
+import com.lcd.getit.model.DetectListener;
+
 
 import java.util.HashMap;
 
@@ -44,16 +43,30 @@ public class DetectView extends FrameLayout
         m_detectsurfaceview = new DetectSurfaceView(context);
         m_detectfinderview = new DetectFinderView(context);
 
-        MainObjectListener mainobjectlistener = new MainObjectListener()
+        DetectListener detectlistenerMainObject = new DetectListener()
         {
             @Override
-            public void onMainObjectDetected(MainObjectResultInfo mainobjectresultinfo)
+            public void onResultDetected(BaseDetectResult basedetectresult)
             {
+                MainObjectResultInfo mainobjectresultinfo = null;
+
+                if (basedetectresult.getJSON() != null)
+                    mainobjectresultinfo = new MainObjectResultInfo(basedetectresult.getJSON());
+
+                else
+                {
+                    mainobjectresultinfo = new MainObjectResultInfo();
+                    mainobjectresultinfo.setTop(0);
+                    mainobjectresultinfo.setLeft(0);
+                    mainobjectresultinfo.setWidth(0);
+                    mainobjectresultinfo.setHeight(0);
+                }
+
                 m_detectfinderview.setFinderLocation(mainobjectresultinfo);
             }
         };
 
-        m_detectsurfaceview.setMainObjectListener(mainobjectlistener);
+        m_detectsurfaceview.setMainObjectListener(detectlistenerMainObject);
 
         addView(m_detectsurfaceview);
         addView(m_detectfinderview);
@@ -69,12 +82,12 @@ public class DetectView extends FrameLayout
         return m_detectsurfaceview.getInterval();
     }
 
-    public void setResultDetectedListener(ResultDetectedListener resultdetectedlistener)
+    public void setResultDetectedListener(DetectListener resultdetectedlistener)
     {
         m_detectsurfaceview.setResultDetectedListener(resultdetectedlistener);
     }
 
-    public DetectSurfaceView.ResultDetectedListener getResultDetectedListener()
+    public DetectListener getResultDetectedListener()
     {
         return m_detectsurfaceview.getResultDetectedListener();
     }

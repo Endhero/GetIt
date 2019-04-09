@@ -3,6 +3,7 @@ package com.lcd.getit.view.wegit;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.util.AttributeSet;
 import android.view.View;
@@ -68,6 +69,7 @@ public class DetectFinderView extends View
 
 
         setFinderLoaction(nLeft, nTop, nLeft + nWidth, nTop + nHeight);
+        invalidate();
     }
 
     public void setFinderLoaction(int nLeft, int nTop, int nRight, int nBottom)
