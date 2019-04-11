@@ -16,9 +16,7 @@ import android.widget.Toast;
 
 import com.lcd.getit.Utils.TransUtil;
 import com.lcd.getit.model.DetectListener;
-
-import org.json.JSONArray;
-import org.json.JSONObject;
+import com.lcd.getit.model.MainObjectDetectListener;
 
 import java.util.HashMap;
 import java.util.concurrent.ExecutorService;
@@ -36,8 +34,8 @@ import static android.content.Context.SENSOR_SERVICE;
 public class DetectSurfaceView extends SurfaceView implements SurfaceHolder.Callback,
         Camera.AutoFocusCallback, Camera.PreviewCallback, SensorEventListener
 {
-    private static final int TYPE_SELF = 1;
-    private static final int TYPE_OTHER = 2;
+    private static final int DETECT_TYPE_INNER = 1;//内部主体检测
+    private static final int DETECT_TYPE_OUTER = 2;//外部检测
 
     private Context m_context;
     private SurfaceHolder m_surfaceholder;
@@ -48,11 +46,18 @@ public class DetectSurfaceView extends SurfaceView implements SurfaceHolder.Call
     private BaseDetectResult m_basedetectresult;
     private Class m_class;
     private HashMap<String, String> m_hashmapOptions;
-    private DetectListener m_detectlistenerMainObject;
+    private MainObjectDetectListener m_mainobjectdetectlistener;
     private DetectListener m_detectlistenerResult;
+    private DetectListener m_detectlistenerDescription;
     private long m_lCurrentTime;
     private ExecutorService m_executerservice;
     private SensorManager m_sensormanager;
+    private float[] m_fGravity = new float[3];//Android重力加速度传感器数据去噪
+    private boolean m_bIsMoving;
+    private int m_nTimeOut;
+    private boolean m_bIsShowResult;
+    private boolean m_bIsShowArea;
+    private boolean m_bIsShowDescription;
 
     public DetectSurfaceView(Context context)
     {
@@ -81,16 +86,86 @@ public class DetectSurfaceView extends SurfaceView implements SurfaceHolder.Call
         if (bSuccess)
         {
             m_camera.cancelAutoFocus();
-            m_hander.postDelayed(new Runnable()
+            m_bNeedDetect = true;
+
+            if (m_sensormanager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER) == null)
             {
-                @Override
-                public void run()
+                m_hander.postDelayed(new Runnable()
                 {
-                    m_camera.autoFocus(DetectSurfaceView.this);
-                    m_bNeedDetect = true;
-                }
-            }, m_nInterval);
+                    @Override
+                    public void run()
+                    {
+                        m_camera.autoFocus(DetectSurfaceView.this);
+                    }
+                }, m_nInterval);
+            }
         }
+        else
+        {
+            Toast.makeText(getContext(),"不支持自动对焦", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+
+    @Override
+    public void onSensorChanged(SensorEvent sensorvent)
+    {
+        switch (sensorvent.sensor.getType())
+        {
+            case Sensor.TYPE_ACCELEROMETER:
+
+                final float alpha = 0.8f;//为啥0.8我也不知道
+
+                m_fGravity[0] = alpha * m_fGravity[0] + (1 - alpha) * sensorvent.values[0];
+                m_fGravity[1] = alpha * m_fGravity[1] + (1 - alpha) * sensorvent.values[1];
+                m_fGravity[2] = alpha * m_fGravity[2] + (1 - alpha) * sensorvent.values[2];
+
+                float fX = Math.abs(sensorvent.values[0] - m_fGravity[0]);
+                float fY = Math.abs(sensorvent.values[1] - m_fGravity[1]);
+                float fZ = Math.abs(sensorvent.values[2] - m_fGravity[2]);
+
+                //获取当前时间戳
+                if (System.currentTimeMillis() -  m_lCurrentTime >= m_nInterval)
+                {
+                    if ((fX + fY + fZ) / 3 < 0.3 && m_bIsMoving)
+                    {
+                        //相对静止
+                        m_bIsMoving = false;
+                        m_camera.autoFocus(this);
+                        m_lCurrentTime = System.currentTimeMillis();
+                        Log.d("Detect", "相对静止");
+                    }
+                    else if ((fX + fY + fZ) / 3 > 0.3 && !m_bIsMoving)
+                    {
+                        //相对加速
+                        m_bIsMoving = true;
+                        m_bNeedDetect = false;
+
+                        if (!m_executerservice.isShutdown())
+                        {
+                            m_executerservice.shutdownNow();
+                            m_executerservice = Executors.newSingleThreadExecutor();
+                            System.gc();
+                        }
+
+                        if (m_mainobjectdetectlistener != null)
+                            m_mainobjectdetectlistener.onResultDetected(null);
+
+                        if (m_detectlistenerDescription != null)
+                            m_detectlistenerDescription.onResultDetected(null);
+
+                        Log.d("Detect", "相对加速");
+                    }
+                }
+
+                break;
+        }
+    }
+
+    //传感器精度变化
+    @Override
+    public void onAccuracyChanged(Sensor sensor, int accuracy)
+    {
     }
 
     @Override
@@ -98,21 +173,12 @@ public class DetectSurfaceView extends SurfaceView implements SurfaceHolder.Call
     {
         try
         {
-            if (System.currentTimeMillis() -  m_lCurrentTime < 200)
-                return;
-
-            else
-            {
-                m_lCurrentTime = System.currentTimeMillis();
-            }
-
             //data默认NV21格式，需要转换成Yuv格式才能提供给百度AI
             if (m_bNeedDetect)
             {
                 Camera.Size size = camera.getParameters().getPreviewSize();
 
-
-                if (m_detectlistenerMainObject != null)
+                if (m_mainobjectdetectlistener != null)
                 {
                     HashMap<String, String> hashmapOptions = new HashMap<String, String>();
                     hashmapOptions.put("with_face", "0");
@@ -129,7 +195,7 @@ public class DetectSurfaceView extends SurfaceView implements SurfaceHolder.Call
                     }
 
                     MainObjectDetectResult mainobjectdetectresult = new MainObjectDetectResult();
-                    detect(mainobjectdetectresult, m_detectlistenerMainObject, TYPE_SELF, MainObjectDetector.class, TransUtil.Nv21toYuv(bRotate, size.width, size.height), hashmapOptions);
+                    detect(mainobjectdetectresult, m_mainobjectdetectlistener, DETECT_TYPE_INNER, MainObjectDetector.class, TransUtil.Nv21toYuv(bRotate, size.width, size.height), hashmapOptions);
                 }
 
                 if (m_class != null)
@@ -144,7 +210,7 @@ public class DetectSurfaceView extends SurfaceView implements SurfaceHolder.Call
                         hashmapOptions = m_hashmapOptions;
                     }
 
-                    detect(m_basedetectresult, m_detectlistenerResult, TYPE_OTHER, m_class, TransUtil.Nv21toYuv(data, size.width, size.height), hashmapOptions);
+                    detect(m_basedetectresult, m_detectlistenerResult, DETECT_TYPE_OUTER, m_class, TransUtil.Nv21toYuv(data, size.width, size.height), hashmapOptions);
                 }
             }
         }
@@ -204,6 +270,46 @@ public class DetectSurfaceView extends SurfaceView implements SurfaceHolder.Call
         return m_nInterval;
     }
 
+    public void setTimeOut(int n)
+    {
+        m_nTimeOut = n;
+    }
+
+    public int getTimeOut()
+    {
+        return m_nTimeOut;
+    }
+
+    public void setIsShowResult(boolean b)
+    {
+        m_bIsShowResult = b;
+    }
+
+    public boolean getIsShowResult()
+    {
+        return m_bIsShowResult;
+    }
+
+    public void setIsShowArea(boolean b)
+    {
+        m_bIsShowArea = b;
+    }
+
+    public boolean getIsShowArea()
+    {
+        return m_bIsShowArea;
+    }
+
+    public void setIsShowDescription(boolean b)
+    {
+        m_bIsShowDescription = b;
+    }
+
+    public boolean getIsShowDescription()
+    {
+        return m_bIsShowDescription;
+    }
+
     public void setOptions(HashMap<String, String> hashmap)
     {
         m_hashmapOptions = hashmap;
@@ -224,24 +330,34 @@ public class DetectSurfaceView extends SurfaceView implements SurfaceHolder.Call
         return m_class;
     }
 
-   public void setMainObjectListener(DetectListener detectlistenerMainObject)
-   {
-       m_detectlistenerMainObject = detectlistenerMainObject;
-   }
+    public void setMainObjectDetectListener(MainObjectDetectListener mainobjectdetectlistener)
+    {
+        m_mainobjectdetectlistener = mainobjectdetectlistener;
+    }
 
-   public DetectListener getMainObjectListener()
-   {
-       return m_detectlistenerMainObject;
-   }
+    public MainObjectDetectListener getMainObjectListener()
+    {
+        return m_mainobjectdetectlistener;
+    }
 
-    public void setResultDetectedListener(DetectListener resultdetectedlistener)
+    public void setResultDetectListener(DetectListener resultdetectedlistener)
     {
         m_detectlistenerResult = resultdetectedlistener;
     }
 
-    public DetectListener getResultDetectedListener()
+    public DetectListener getResultDetectListener()
     {
         return m_detectlistenerResult;
+    }
+
+    public void setDescriptionDetectListener(DetectListener descriptionlistener)
+    {
+        m_detectlistenerDescription = descriptionlistener;
+    }
+
+    public DetectListener getDescriptionDetectListener()
+    {
+        return m_detectlistenerDescription;
     }
 
     public void setAipImageClassify(String strAppId, String strAppKey, String strSecretKey)
@@ -255,9 +371,13 @@ public class DetectSurfaceView extends SurfaceView implements SurfaceHolder.Call
         m_context = context;
         m_surfaceholder = getHolder();
         m_surfaceholder.addCallback(this);
+        m_bIsMoving = true;//初始化为移动状态，防止在静止状态下启用不对焦
+        m_bIsShowResult = true;
+        m_bIsShowArea = true;//关闭可减少检测等待时间
+        m_bIsShowDescription = true;
         m_bNeedDetect = false;
+        m_nTimeOut = 1000;
         m_nInterval = 1000;
-        m_lCurrentTime = System.currentTimeMillis();
         m_sensormanager = (SensorManager) m_context.getSystemService(SENSOR_SERVICE);
     }
 
@@ -272,10 +392,6 @@ public class DetectSurfaceView extends SurfaceView implements SurfaceHolder.Call
                     Toast.makeText(m_context,"不支持拍照", Toast.LENGTH_LONG).show();
                     return;
                 }
-
-                //注册传感器(加速度)
-                if (m_sensormanager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER) != null)
-                    m_sensormanager.registerListener(this, m_sensormanager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER), SensorManager.SENSOR_DELAY_UI);
 
                 m_camera = Camera.open(0);
 
@@ -300,10 +416,21 @@ public class DetectSurfaceView extends SurfaceView implements SurfaceHolder.Call
                 //开启预览
                 m_camera.setPreviewDisplay(holder);
                 m_camera.startPreview();
-                //设置对焦回调，必须在开启预览之后
-                m_camera.autoFocus(this);
                 //设置预览回调
                 m_camera.setPreviewCallback(this);
+
+                //注册传感器(加速度)
+                if (m_sensormanager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER) != null)
+                {
+                    m_sensormanager.registerListener(this, m_sensormanager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER), SensorManager.SENSOR_DELAY_UI);
+                    m_lCurrentTime = System.currentTimeMillis();
+                }
+                else
+                {
+                    //设置对焦回调，让Camera进行自动对焦，调用onAutoFocus，但必须在开启预览之后才能设置
+                    m_camera.autoFocus(this);
+                    Toast.makeText(getContext(), "没有加速度传感器,定时对焦", Toast.LENGTH_SHORT).show();
+                }
             }
         }
         catch (Exception exception)
@@ -320,33 +447,6 @@ public class DetectSurfaceView extends SurfaceView implements SurfaceHolder.Call
         DetectThread detectthread = new DetectThread(basedetectresult, detectlistener, nType, clazz, b, hashmap);
 
         m_executerservice.execute(detectthread);
-    }
-
-    @Override
-    public void onSensorChanged(SensorEvent event)
-    {
-//        float fX = Math.abs(event.values[0]);
-////        float fY = Math.abs(event.values[1]);
-////        float fZ = Math.abs(event.values[2]);
-////
-////        if (fX > 1 || fY > 4)
-////        {
-////            MainObjectDetectResult mainobjectdetectresult = new MainObjectDetectResult();
-////
-////            if (m_detectlistenerMainObject != null)
-////                m_detectlistenerMainObject.onResultDetected(mainobjectdetectresult);
-////        }
-////
-////        Log.d("Detect", "X:" + fX);
-////        Log.d("Detect", "Y:" + fY);
-////        Log.d("Detect", "Z:" + fZ);
-    }
-
-    //传感器精度变化
-    @Override
-    public void onAccuracyChanged(Sensor sensor, int accuracy)
-    {
-
     }
 
     class DetectThread extends Thread
@@ -383,7 +483,7 @@ public class DetectSurfaceView extends SurfaceView implements SurfaceHolder.Call
 
                     while (m_basedetectresult == null)
                     {
-                        if (System.currentTimeMillis() - lTime < 1000 * 1)
+                        if (System.currentTimeMillis() - lTime <= m_nTimeOut)
                             Thread.sleep(50);
 
                         else
@@ -397,17 +497,29 @@ public class DetectSurfaceView extends SurfaceView implements SurfaceHolder.Call
                     if (m_detectlistener != null && m_basedetectresult != null)
                     {
                         Log.d("Detect", "DetectFinish:" + m_nType + " " + System.currentTimeMillis());
-                        m_detectlistener.onResultDetected(m_basedetectresult);
 
-                        if (m_nType == TYPE_OTHER)
+                        if (m_nType == DETECT_TYPE_INNER)
+                        {
+                            if (m_bIsShowArea)
+                                m_detectlistener.onResultDetected(m_basedetectresult);
+                        }
+
+                        if (m_nType == DETECT_TYPE_OUTER)
                         {
                             m_bNeedDetect = false;
 
+                            if (m_bIsShowResult)
+                                m_detectlistener.onResultDetected(m_basedetectresult);
+
+                            if (m_detectlistenerDescription != null && m_bIsShowDescription)
+                                m_detectlistenerDescription.onResultDetected(m_basedetectresult);
+
+                            //阻止线程池执行其它任务，并清空线程池
                             if (!m_executerservice.isShutdown())
                             {
                                 m_executerservice.shutdownNow();
                                 m_executerservice = Executors.newSingleThreadExecutor();
-                                System.gc();
+                                System.gc();//提醒系统进行垃圾回收
                             }
                         }
                     }

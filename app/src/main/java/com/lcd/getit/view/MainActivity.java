@@ -15,6 +15,7 @@ import android.widget.TextView;
 import com.lcd.getit.Constants;
 import com.lcd.getit.R;
 import com.lcd.getit.model.DetectListener;
+import com.lcd.getit.model.GeneralObjectDetectListener;
 import com.lcd.getit.model.service.DetectService;
 import com.lcd.getit.view.wegit.DetectSurfaceView;
 import com.lcd.getit.view.wegit.DetectView;
@@ -23,6 +24,7 @@ import java.util.HashMap;
 
 import detector.GeneralObjectDetector;
 import entity.detectresult.BaseDetectResult;
+import entity.detectresult.GeneralObjectDetectResult;
 
 public class MainActivity extends Activity
 {
@@ -58,10 +60,10 @@ public class MainActivity extends Activity
         HashMap<String, String> hashmapOptions = new HashMap<String, String>();
         hashmapOptions.put("baike_num", "5");
 
-        DetectListener detectedlistener = new DetectListener()
+        GeneralObjectDetectListener generalobjectdetectlisstener = new GeneralObjectDetectListener()
         {
             @Override
-            public void onResultDetected(final BaseDetectResult basedetectresult)
+            public void onResultDetected(final GeneralObjectDetectResult generalobjectdetectresult)
             {
                 runOnUiThread(new Runnable()
                 {
@@ -70,7 +72,7 @@ public class MainActivity extends Activity
                     {
                         try
                         {
-                            textview.setText(basedetectresult.getJSON().toString(2));
+                            textview.setText(generalobjectdetectresult.getJSON().toString(2));
                         }
                         catch (Exception exception)
                         {
@@ -83,14 +85,16 @@ public class MainActivity extends Activity
 
         detectview.setOptions(hashmapOptions);
         detectview.setDetectClass(GeneralObjectDetector.class);
-        detectview.setResultDetectedListener(detectedlistener);
+        detectview.setResultDetectedListener(generalobjectdetectlisstener);
         detectview.setAipImageClassify(Constants.APP_ID, Constants.API_KEY, Constants.SECRET_KEY);
     }
+
     @Override
     public void onDestroy()
     {
         super.onDestroy();
     }
+
     @Override
     public void onRequestPermissionsResult(int requestCode, String permissions[], int[] grantResults)
     {

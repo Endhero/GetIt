@@ -5,10 +5,15 @@ import android.util.AttributeSet;
 import android.widget.FrameLayout;
 
 import entity.detectresult.BaseDetectResult;
+import entity.detectresult.MainObjectDetectResult;
 import entity.info.resultinfo.MainObjectResultInfo;
 
 import com.lcd.getit.model.DetectListener;
+import com.lcd.getit.model.MainObjectDetectListener;
 
+
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 import java.util.HashMap;
 
@@ -16,6 +21,8 @@ public class DetectView extends FrameLayout
 {
     private DetectSurfaceView m_detectsurfaceview;
     private DetectFinderView m_detectfinderview;
+    private boolean m_bIsNeedMainObject;
+    private boolean m_bIsNeedDescription;
 
     public DetectView(Context context)
     {
@@ -42,31 +49,63 @@ public class DetectView extends FrameLayout
     {
         m_detectsurfaceview = new DetectSurfaceView(context);
         m_detectfinderview = new DetectFinderView(context);
+        m_bIsNeedMainObject = true;
+        m_bIsNeedDescription = true;
 
-        DetectListener detectlistenerMainObject = new DetectListener()
+        MainObjectDetectListener mainobjectdetectlistener = new MainObjectDetectListener()
+        {
+            @Override
+            public void onResultDetected(MainObjectDetectResult mainobjectdetectresult)
+            {
+                if (mainobjectdetectresult != null)
+                {
+                    if (m_bIsNeedMainObject)
+                    {
+                        MainObjectResultInfo mainobjectresultinfo = mainobjectdetectresult.getResultInfo();
+                        m_detectfinderview.setFinderLocation(mainobjectresultinfo);
+                    }
+                }
+                else
+                    m_detectfinderview.setFinderLocation(null);
+            }
+        };
+
+        DetectListener detectlistenerDescription = new DetectListener()
         {
             @Override
             public void onResultDetected(BaseDetectResult basedetectresult)
             {
-                MainObjectResultInfo mainobjectresultinfo = null;
-
-                if (basedetectresult.getJSON() != null)
-                    mainobjectresultinfo = new MainObjectResultInfo(basedetectresult.getJSON());
-
-                else
+                if (m_bIsNeedDescription)
                 {
-                    mainobjectresultinfo = new MainObjectResultInfo();
-                    mainobjectresultinfo.setTop(0);
-                    mainobjectresultinfo.setLeft(0);
-                    mainobjectresultinfo.setWidth(0);
-                    mainobjectresultinfo.setHeight(0);
-                }
+                    try
+                    {
+                        if (basedetectresult != null)
+                        {
+                            JSONObject jsonObject = basedetectresult.getJSON();
 
-                m_detectfinderview.setFinderLocation(mainobjectresultinfo);
+                            if (basedetectresult.getJSON() != null)
+                            {
+                                if (jsonObject.has("result"))
+                                {
+                                    JSONArray jsonarrayResult = jsonObject.getJSONArray("result");
+                                    m_detectfinderview.setDescription(jsonarrayResult);
+                                }
+                            }
+                        }
+                        else
+                            m_detectfinderview.setDescription(null);
+
+                    }
+                    catch (Exception exception)
+                    {
+                        exception.printStackTrace();
+                    }
+                }
             }
         };
 
-        m_detectsurfaceview.setMainObjectListener(detectlistenerMainObject);
+        m_detectsurfaceview.setMainObjectDetectListener(mainobjectdetectlistener);
+        m_detectsurfaceview.setDescriptionDetectListener(detectlistenerDescription);
 
         addView(m_detectsurfaceview);
         addView(m_detectfinderview);
@@ -82,19 +121,69 @@ public class DetectView extends FrameLayout
         return m_detectsurfaceview.getInterval();
     }
 
+    public void setTimeOut(int n)
+    {
+        m_detectsurfaceview.setTimeOut(n);
+    }
+
+    public int getTimeOut()
+    {
+        return m_detectsurfaceview.getTimeOut();
+    }
+
+    public void setIsShowResult(boolean b)
+    {
+        m_detectsurfaceview.setIsShowResult(b);
+    }
+
+    public boolean getIsShowResult()
+    {
+        return m_detectsurfaceview.getIsShowResult();
+    }
+
+    public void setIsShowArea(boolean b)
+    {
+        m_detectsurfaceview.setIsShowArea(b);
+    }
+
+    public boolean getIsShowArea()
+    {
+        return m_detectsurfaceview.getIsShowArea();
+    }
+
+    public void setIsShowDescription(boolean b)
+    {
+        m_detectsurfaceview.setIsShowDescription(b);
+    }
+
+    public boolean getIsShowDescription()
+    {
+        return m_detectsurfaceview.getIsShowDescription();
+    }
+
     public void setResultDetectedListener(DetectListener resultdetectedlistener)
     {
-        m_detectsurfaceview.setResultDetectedListener(resultdetectedlistener);
+        m_detectsurfaceview.setResultDetectListener(resultdetectedlistener);
     }
 
     public DetectListener getResultDetectedListener()
     {
-        return m_detectsurfaceview.getResultDetectedListener();
+        return m_detectsurfaceview.getResultDetectListener();
     }
 
     public void setOptions(HashMap<String, String> hashmap)
     {
         m_detectsurfaceview.setOptions(hashmap);
+    }
+
+    public void setNeedMainObject(boolean b)
+    {
+        m_bIsNeedMainObject = b;
+    }
+
+    public void setNeedDescription(boolean b)
+    {
+        m_bIsNeedDescription = b;
     }
 
     public HashMap<String, String> getOptions()
