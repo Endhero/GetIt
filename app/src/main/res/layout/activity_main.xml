@@ -3,7 +3,7 @@
     android:orientation="vertical" android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <com.lcd.getit.view.wegit.DetectView
+    <com.lcd.smartdetectview.wegit.DetectView
         android:id="@+id/detectview"
         android:layout_width="match_parent"
         android:layout_height="0dp"

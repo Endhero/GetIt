@@ -2,34 +2,24 @@ package com.lcd.getit.view;
 
 import android.Manifest;
 import android.app.Activity;
-import android.content.ComponentName;
-import android.content.Context;
-import android.content.Intent;
-import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
-import android.os.IBinder;
 import android.support.v4.app.ActivityCompat;
 import android.widget.TextView;
 
 import com.lcd.getit.Constants;
 import com.lcd.getit.R;
-import com.lcd.getit.model.DetectListener;
-import com.lcd.getit.model.GeneralObjectDetectListener;
-import com.lcd.getit.model.service.DetectService;
-import com.lcd.getit.view.wegit.DetectSurfaceView;
-import com.lcd.getit.view.wegit.DetectView;
+import com.lcd.smartdetectview.listener.detectlistener.GeneralObjectDetectListener;
+import com.lcd.smartdetectview.wegit.DetectView;
 
 import java.util.HashMap;
 
 import detector.GeneralObjectDetector;
-import entity.detectresult.BaseDetectResult;
 import entity.detectresult.GeneralObjectDetectResult;
+
 
 public class MainActivity extends Activity
 {
-    private DetectService.DetectBinder m_detectbinder;
-
     @Override
     protected void onCreate(Bundle savedInstanceState)
     {
@@ -87,6 +77,7 @@ public class MainActivity extends Activity
         detectview.setDetectClass(GeneralObjectDetector.class);
         detectview.setResultDetectedListener(generalobjectdetectlisstener);
         detectview.setAipImageClassify(Constants.APP_ID, Constants.API_KEY, Constants.SECRET_KEY);
+        detectview.setIsShowArea(true);
     }
 
     @Override
