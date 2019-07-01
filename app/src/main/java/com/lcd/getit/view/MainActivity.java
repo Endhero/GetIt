@@ -14,7 +14,6 @@ import com.lcd.smartdetectview.wegit.DetectView;
 
 import java.util.HashMap;
 
-import detector.GeneralObjectDetector;
 import entity.detectresult.GeneralObjectDetectResult;
 
 
@@ -74,9 +73,7 @@ public class MainActivity extends Activity
         };
 
         detectview.setOptions(hashmapOptions);
-        detectview.setDetectClass(GeneralObjectDetector.class);
         detectview.setResultDetectedListener(generalobjectdetectlisstener);
-        detectview.setAipImageClassify(Constants.APP_ID, Constants.API_KEY, Constants.SECRET_KEY);
         detectview.setIsShowArea(true);
     }
 
