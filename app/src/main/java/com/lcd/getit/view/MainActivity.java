@@ -15,6 +15,11 @@ import com.lcd.smartdetectview.wegit.DetectView;
 import java.util.HashMap;
 
 import entity.detectresult.GeneralObjectDetectResult;
+import imageclassify.AipImageClassify;
+
+import static com.lcd.getit.Constants.API_KEY;
+import static com.lcd.getit.Constants.APP_ID;
+import static com.lcd.getit.Constants.SECRET_KEY;
 
 
 public class MainActivity extends Activity
@@ -43,6 +48,9 @@ public class MainActivity extends Activity
 
     private void initView()
     {
+        if (AipImageClassify.getAipImageClassify() == null)
+            AipImageClassify.setAipImageClassify(APP_ID, API_KEY, SECRET_KEY);
+
         DetectView detectview = findViewById(R.id.detectview);
         final TextView textview = findViewById(R.id.textview_content);
 
